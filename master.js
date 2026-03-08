@@ -2,13 +2,12 @@ import { Worker } from 'node:worker_threads';
 import { Queue } from './queue.js';
 
 export class Master {
-  constructor(path, memory) {
+  constructor(path) {
     this.worker = new Worker(path);
     this.pending = new Map();
     this.sheduler = new Queue();
     this.free = [];
     this.countdown = 1024;
-    this.memory = memory;
     
     this.worker.on('message', ({headers, body}) => {
       const head = new DataView(headers).getUint16(0, true);
@@ -59,7 +58,7 @@ export class Master {
     const types = { json: 0, string: 1, binary: 2, msgpack: 3 };
     const methods = { GET: 0, POST: 1, PUT: 2, DELETE: 3 };
     
-    const head = (types[headers?.type || 'json'] << 14) | ((headers?.stream ? 1 : 0) << 13) | (methods[method] << 10) | id;
+    const head = (types[headers?.type || 'json'] << 14) | (methods[method] << 10) | id;
     const buf = new ArrayBuffer(2);
     new DataView(buf).setUint16(0, head, true);
 
@@ -67,7 +66,7 @@ export class Master {
     this.worker.postMessage({path, headers: buf, body}, [buf]);
   }
 
-  fetch(path, {method = 'GET', headers = {}, body, onStream} = {}) {
+  fetch(path, {method = 'GET', headers = {}, body, transfer} = {}) {
     return new Promise((resolve, reject) => {
       this.sheduler.push({path, method, headers, body, resolve, reject});
       this._next();

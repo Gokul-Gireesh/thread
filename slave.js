@@ -7,11 +7,10 @@ import { Queue } from './queue.js';
 export class Slave extends Router {
   constructor() {
     this.pending = new Map();
-    this.using = new Map();
     this.waiting = new Map();
   }
   listen() {
-    parentPort.on('message', ({path, headers, body}) => {
+    parentPort.on('message', async ({path, headers, body}) => {
       const view = new DataView(headers);
       const head = view.getUint16(0, true);
       const types = ['json', 'string', 'binary', 'msgpack'];
@@ -38,49 +37,33 @@ export class Slave extends Router {
         
         const head = (type << 14) | (stream << 13) | (custom << 10) | (id);
         
-        const waiting = this.waiting.get(id);
-        
-        if (view.byteLength) {
-          if (!stream) {
-            this.pending.set(id, new Queue);
-            this.using.set(id, false);
-            this.waiting.delete(id);
-          }
-          view.setUint16(0, head, true);
-          parentPort.postMessage({ 
-            body: load.body, 
-            headers
-          }, [headers]);
-        } else if (waiting?.byteLength) {
-          if (!stream) {
-            this.pending.set(id, new Queue);
-            this.using.set(id, false);
-          }
-          const view = new DataView(waiting);
-          view.setUint16(0, head, true);
-          parentPort.postMessage({ 
-            body: load.body, 
-            headers: waiting
-          }, [waiting]);
-          this.waiting.delete(id);
-        } else if (stream) {
-          this.pending.get(id).push({ headers: head, body: load.body });
-        }
+        this.pending.get(id).push({ headers: head, body: load.body });
+        this._next(id);
       });
+      
+      this.waiting.set(id, headers);
+      if (Headers.stream) {
+        this._next(id);
+      } else {
+        this.pending.set(id, new Queue());
+        await this._handle(req, res, path);
+        res.end();
+      }
+    });
+  }
+  _next(id) {
+    const waiting = this.waiting.get(id);
+    if (waiting) {
       const pending = this.pending.get(id).shift();
-      const using = this.using.get(id);
       if (pending) {
+        const view = new DataView(waiting);
         view.setUint16(0, pending.headers, true);
         parentPort.postMessage({
           body: pending.body,
-          headers
-        }, [headers]);
-      } else if (using) {
-        this.waiting.set(id, headers);
-      } else {
-        this.using.set(id, true);
-        this._handle(req, res, path);
+          headers: waiting
+        }, [waiting]);
+        this.waiting.delete(id);
       }
-    });
+    }
   }
 }

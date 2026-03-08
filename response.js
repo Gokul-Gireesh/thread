@@ -3,14 +3,10 @@ export class Response {
     this.headers = {
       status: 200,
       type: 'json',
+      stream: 'true'
     };
     this.body = '';
     this.interceptor = interceptor;
-  }
-
-  status(code) {
-    this.set('status', code);
-    return this;
   }
 
   set(key, value) {
@@ -26,37 +22,32 @@ export class Response {
   }
 
   json(data) {
-    this.set('stream', false);
+    this.set('stream', true);
     this.set('type', 'json');
     return this.send(JSON.stringify(data));
   }
 
   string(data) {
-    this.set('stream', false);
+    this.set('stream', true);
     this.set('type', 'string');
     return this.send(String(data));
   }
 
   binary(data) {
-    this.set('stream', false);
+    this.set('stream', true);
     this.set('type', 'binary');
     return this.send(data);
   }
 
   msgpack(data) {
-    this.set('stream', false);
+    this.set('stream', true);
     this.set('type', 'msgpack');
     return this.send(data);
   }
 
-  stream(data) {
-    this.set('stream', true);
-    return this.send(data);
-  }
-
-  end() {
+  end(body, type) {
     this.set('stream', false);
-    this.set('type', null);
-    return this.send(null);
+    this.set('type', type);
+    return this.send(body);
   }
 }
