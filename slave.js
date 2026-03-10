@@ -6,6 +6,7 @@ import { Queue } from './queue.js';
 
 export class Slave extends Router {
   constructor() {
+    super();
     this.pending = new Map();
     this.waiting = new Map();
   }

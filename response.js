@@ -17,7 +17,7 @@ export class Response {
   send(body) {
     this.interceptor({
       headers: this.headers,
-      body: body,
+      body,
     });
   }
 

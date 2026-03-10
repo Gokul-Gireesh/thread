@@ -22,7 +22,6 @@ export class Master {
       const res = {
         body,
         headers: {
-          stream: !!stream,
           type: ['json', 'string', 'binary', 'msgpack'][type],
           custom
         },
@@ -63,10 +62,12 @@ export class Master {
     new DataView(buf).setUint16(0, head, true);
 
     this.pending.set(id, {resolve, reject});
-    this.worker.postMessage({path, headers: buf, body}, [buf]);
+    this.pending.set(id, {resolve, reject});
+    if (headers?.transfer) this.worker.postMessage({path, headers: buf, body}, [buf, body]);
+    else this.worker.postMessage({path, headers: buf, body}, [buf]);
   }
 
-  fetch(path, {method = 'GET', headers = {}, body, transfer} = {}) {
+  fetch(path, {method = 'GET', headers = {}, body} = {}) {
     return new Promise((resolve, reject) => {
       this.sheduler.push({path, method, headers, body, resolve, reject});
       this._next();

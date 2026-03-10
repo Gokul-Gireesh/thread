@@ -1,4 +1,4 @@
-import { Route } from '$.js';
+//import { Route } from '$.js';
 
 export class Router {
   constructor() { this.stack = []; }

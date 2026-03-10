@@ -1,19 +1,31 @@
 {
-  "name": "thread",
+  "name": "@gokul-gireesh/thread",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "A worker thread implimentaion using express like routing",
+  "main": "node.js",
+  "type": "module",
+  "exports": {
+    ".": {
+      "browser": "./web.js",
+      "node": "./node.js",
+      "default": "./node.js"
+    }
+  },
   "scripts": {
+    "postinstall": "node thank.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Gokul-Gireesh/thread.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
+  "keywords": [
+    "router",
+    "worker",
+    "thread"
+  ],
+  "author": "Gokul-Gireesh",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/Gokul-Gireesh/thread/issues"
   },
