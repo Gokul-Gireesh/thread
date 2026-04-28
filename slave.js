@@ -1,70 +1,68 @@
-import { parentPort } from 'node:worker_threads';
-import { Router } from './router.js';
-import { Request } from './request.js';
-import { Response } from './response.js';
+import { Worker } from 'node:worker_threads';
 import { Queue } from './queue.js';
 
-export class Slave extends Router {
-  constructor() {
-    super();
-    this.pending = new Map();
-    this.waiting = new Map();
-  }
-  listen() {
-    parentPort.on('message', async ({path, headers, body}) => {
-      const view = new DataView(headers);
-      const head = view.getUint16(0, true);
-      const types = ['json', 'string', 'binary', 'msgpack'];
-      const methods = ['GET', 'POST', 'PUT', 'DELETE'];
-      const id = head & 0x3ff;
-      
-      if (!this.pending.has(id)) this.pending.set(id, new Queue());
+export class Slave {
+  constructor(path) {
+    this._worker = new Worker(path);
+    this._pending = new Map();
+    this._scheduler = new Queue();
+    this._free = [];
+    this._countdown = 4096;
+    
+    this._worker.on('message', ({headers, body}) => {
+      const head = new DataView(headers).getUint16(0, true);
+      const id = head & 0xfff;
+      const stream = (head >> 15);
 
-      const method = (head >> 10) & 3;
-      const Headers = {
-        id,
-        stream: !!((head >> 13) & 1),
-        type: types[((head >> 14) & 3)],
-        status: 200
+      const promise = this._pending.get(id);
+      if (!promise) return;
+
+      const res = {
+        body
       };
-      const Method = methods[method];
-      const req = new Request({path, method: Method, headers: Headers, body});
-      
-      const res = new Response((load) => {
-        const types = { json: 0, string: 1, binary: 2, msgpack: 3 };
-        const type = types[load.headers.type] ?? 1;
-        const stream = load.headers.stream ? 1 : 0;
-        const custom = load.headers.custom & 3;
-        
-        const head = (type << 14) | (stream << 13) | (custom << 10) | (id);
-        
-        this.pending.get(id).push({ headers: head, body: load.body });
-        this._next(id);
-      });
-      
-      this.waiting.set(id, headers);
-      if (Headers.stream) {
-        this._next(id);
+
+      if (stream) {
+        const deferred = Promise.withResolvers();
+        this._pending.set(id, {
+          resolve: deferred.resolve,
+          reject: deferred.reject
+        });
+        res.stream = deferred.promise;
+        promise.resolve(res);
+        this._worker.postMessage({headers}, [headers]);
       } else {
-        this.pending.set(id, new Queue());
-        await this._handle(req, res, path);
-        res.end();
+        promise.resolve(res);
+        this._pending.delete(id);
+        this._free.push(id);
+        this._next();
       }
     });
   }
-  _next(id) {
-    const waiting = this.waiting.get(id);
-    if (waiting) {
-      const pending = this.pending.get(id).shift();
-      if (pending) {
-        const view = new DataView(waiting);
-        view.setUint16(0, pending.headers, true);
-        parentPort.postMessage({
-          body: pending.body,
-          headers: waiting
-        }, [waiting]);
-        this.waiting.delete(id);
-      }
-    }
+
+  _next() {
+    if (this._scheduler.length === 0) return;
+    
+    let id;
+    if (this._free.length > 0) id = this._free.pop();
+    else if (this._countdown > 0) id = --this._countdown;
+    else return;
+
+    const {path, method, body, transfer, resolve, reject} = this._scheduler.shift();
+
+    const methods = { GET: 0, POST: 1, PUT: 2, DELETE: 3 };
+    
+    const head = (methods[method] << 13) | id;
+    const headers = new ArrayBuffer(2);
+    new DataView(headers).setUint16(0, head, true);
+
+    this._pending.set(id, {resolve, reject});
+    this._worker.postMessage({path, headers, body}, [headers, ...transfer]);
+  }
+
+  fetch(path, {method = 'GET', body, transfer = []} = {}) {
+    return new Promise((resolve, reject) => {
+      this._scheduler.push({path, method, body, transfer, resolve, reject});
+      this._next();
+    });
   }
 }

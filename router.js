@@ -1,4 +1,4 @@
-//import { Route } from '$.js';
+import { Route } from './$.js';
 
 export class Router {
   constructor() { this.stack = []; }
@@ -21,11 +21,11 @@ export class Router {
       return await this._handle(req, res, path, index + 1, error);
     }
     
-    // if(path instanceof Route) {};
-    
-    const match = (layer.path === '/' || path === layer.path || path.startsWith(layer.path + '/')) && (!layer.method || layer.method === req.method);
+    const method = !layer.method || layer.method === req.method;
+    const match = method && ((layer.path instanceof Route && layer.path.match(path)) || layer.path === '/' || path === layer.path || path.startsWith(layer.path + '/'));
     
     if (match) {
+      req.params = { ...req.params, ...match.params };
       try {
         if (layer.handler instanceof Router) {
           const subPath = path.slice(layer.path.length) || '/';
@@ -37,6 +37,8 @@ export class Router {
       } catch (e) {
         await this._handle(req, res, path, index + 1, e);
       }
-    } else { await this._handle(req, res, path, index + 1, error); }
+    } else { 
+      await this._handle(req, res, path, index + 1, error);
+    }
   }
 }

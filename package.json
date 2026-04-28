@@ -6,13 +6,16 @@
   "type": "module",
   "exports": {
     ".": {
-      "browser": "./web.js",
-      "node": "./node.js",
-      "default": "./node.js"
+      "browser": "./webBundle.js",
+      "node": "./nodeBundle.js",
+      "default": "./nodeBundle.js"
     }
   },
   "scripts": {
     "postinstall": "node thank.js",
+    "build:node": "rollup node.js --file nodeBundle.js --format es -p node-resolve -p commonjs -p terser",
+    "build:web": "rollup web.js --file webBundle.js --format es -p node-resolve -p commonjs -p terser",
+    "build": "npm run build:node && npm run build:web",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -29,5 +32,11 @@
   "bugs": {
     "url": "https://github.com/Gokul-Gireesh/thread/issues"
   },
-  "homepage": "https://github.com/Gokul-Gireesh/thread#readme"
+  "homepage": "https://github.com/Gokul-Gireesh/thread#readme",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^29.0.2",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-terser": "^1.0.0",
+    "rollup": "^4.60.2"
+  }
 }

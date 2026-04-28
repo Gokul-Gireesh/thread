@@ -9,6 +9,7 @@ export class Route {
     const match = path.match(this.regex);
     
     if (!match) return null;
+    this.length = match[0].length;
 
     const params = {};
     for (let i = 0; i < this.keys.length; i++) {
