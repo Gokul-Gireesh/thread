@@ -1,44 +1,75 @@
-import { Route } from './$.js';
+import { Route } from './route.js';
 
 export class Router {
-  constructor() { this.stack = []; }
-  use(path, ...handlers) {
-    const routePath = typeof path === 'string' ? path : '/';
-    const fns = typeof path === 'string' ? handlers : [path, ...handlers];
-    fns.forEach(fn => this.stack.push({ path: routePath, handler: fn, method: null }));
+  constructor() {
+    this._stack = {
+      GET: [],
+      POST: [],
+      PUT: [],
+      DELETE: []
+    };
   }
-  get(path, handler) { this.stack.push({ path, handler, method: 'GET' }); }
-  post(path, handler) { this.stack.push({ path, handler, method: 'POST' }); }
-  put(path, handler) { this.stack.push({ path, handler, method: 'PUT' }); }
-  delete(path, handler) { this.stack.push({ path, handler, method: 'DELETE' }); }
+  use(...handlers) {
+    handlers.forEach(handler => {
+      const layer = { path: '/', handler };
+      this._stack.GET.push(layer);
+      this._stack.POST.push(layer);
+      this._stack.PUT.push(layer);
+      this._stack.DELETE.push(layer);
+    });
+  }
+  all(path, ...handlers) {
+    handlers.forEach(handler => {
+      const layer = { path, handler };
+      this._stack.GET.push(layer);
+      this._stack.POST.push(layer);
+      this._stack.PUT.push(layer);
+      this._stack.DELETE.push(layer);
+    });
+  }
+  get(path, handler) { this._stack.GET.push({ path, handler }); }
+  post(path, handler) { this._stack.POST.push({ path, handler }); }
+  put(path, handler) { this._stack.PUT.push({ path, handler }); }
+  delete(path, handler) { this._stack.DELETE.push({ path, handler }); }
 
-  async _handle(req, res, path, index = 0, error = null) {
-    if (index >= this.stack.length) return;
-    const layer = this.stack[index];
-    const errorWare = layer.handler.length === 4;
+  _push(layer) {
+    this._stack.GET.push(layer);
+    this._stack.POST.push(layer);
+    this._stack.PUT.push(layer);
+    this._stack.DELETE.push(layer);
+  }
+
+  _handle(req, res, path, method, index = 0, error = null) {
+    const stack = this._stack[method];
+    if (index >= stack.length) return () => this._next(error);
+    const layer = stack[index];
+    const errorWare = layer.handler.length === 5;
 
     if ((error && !errorWare) || (!error && errorWare)) {
-      return await this._handle(req, res, path, index + 1, error);
+      return () => this._handle(req, res, path, method, index + 1, error);
     }
-    
-    const method = !layer.method || layer.method === req.method;
-    const match = method && ((layer.path instanceof Route && layer.path.match(path)) || layer.path === '/' || path === layer.path || path.startsWith(layer.path + '/'));
-    
+
+    const match = (layer.path instanceof Route && layer.path.match(path)) || layer.path === '/' || path === layer.path || path.startsWith(layer.path + '/');
+
     if (match) {
-      req.params = { ...req.params, ...match.params };
-      try {
-        if (layer.handler instanceof Router) {
-          const subPath = path.slice(layer.path.length) || '/';
-          await layer.handler._handle(req, res, subPath, 0, error);
-        } else {
-          const next = async (e) => await this._handle(req, res, path, index + 1, e || error);
-          await layer.handler(req, res, next, error);
-        }
-      } catch (e) {
-        await this._handle(req, res, path, index + 1, e);
+      //req.params = { ...req.params, ...layer.path.params };
+      req.getParams = () => layer.path.getParams();
+      req.getSearchParams = () => layer.path.getSearchParams();
+      if (layer.handler instanceof Router) {
+        layer.handler._next = (e) => this._handle(req, res, path, method, index + 1, e ?? error);
+        const subPath = path.slice(layer.path.length) || '/';
+        return () => layer.handler._handle(req, res, subPath, method, 0, error);
+      } else {
+        const next = (e) => this._handle(req, res, path, method, index + 1, e ?? error);
+        return () => layer.handler(req, res, next, this._next, error);
       }
-    } else { 
-      await this._handle(req, res, path, index + 1, error);
+    } else {
+      return () => this._handle(req, res, path, method, index + 1, error);
     }
+  }
+
+  _next(e) {
+    if (e) throw e;
+    throw new Error('Uncaught Route: please provide a generic handler for catching all uncaught routes.');
   }
 }

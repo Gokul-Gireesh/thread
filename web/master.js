@@ -1,55 +1,48 @@
 import { Router } from '../router.js';
 import { Request } from '../request.js';
 import { Response } from '../response.js';
-import { Queue } from '../queue.js';
+
+const methods = {
+  1: 'GET',
+  2: 'POST',
+  3: 'PUT',
+  4: 'DELETE'
+};
 
 export class Master extends Router {
   constructor() {
     super();
     this._pending = new Map();
-    this._waiting = new Map();
   }
   listen() {
-    self.onmessage = ({ data: { path, headers, body } }) => {
-      const view = new DataView(headers);
-      const head = view.getUint16(0, true);
-      const method = ['GET', 'POST', 'PUT', 'DELETE'][(head >> 13) & 3];
-      const id = head & 0xfff;
-      
-      if (!this._pending.has(id)) this._pending.set(id, new Queue());
-
-      const stream = !!(head >> 15);
-      const req = new Request({path, method, body, stream});
-      
-      const res = new Response((body, stream = 0, transfer = []) => {
-        const headers = (stream << 15) | (id);
-        
-        this._pending.get(id).push({ headers, body, transfer });
-        this._next(id);
-      });
-      
-      this._waiting.set(id, headers);
-      if (stream) {
-        this._next(id);
-      } else {
-        this._pending.set(id, new Queue());
-        this._handle(req, res, path);
-      }
-    };
+    self.addEventListener('message', (e) => this._onMessage(e.data));
+    self.postMessage({});
   }
-  _next(id) {
-    const waiting = this._waiting.get(id);
-    if (waiting) {
-      const pending = this._pending.get(id).shift();
-      if (pending) {
-        const view = new DataView(waiting);
-        view.setUint16(0, pending.headers, true);
-        self.postMessage({
-          body: pending.body,
-          headers: waiting
-        }, [waiting, ...pending.transfer]);
-        this._waiting.delete(id);
-      }
+  _onMessage({path, headers, body}) {
+    const view = new DataView(headers);
+    const head = view.getUint16(0, true);
+    const flag = (head >> 12);
+    const id = head & 0xfff;
+
+    if (flag) {
+      const method = methods[flag];
+      const req = new Request({path, method, body});
+      const res = new Response((body, flag = 0, transfer = []) => {
+        view.setUint16(0, (flag << 12) | id, true);
+
+        self.postMessage({headers, body}, [headers, ...transfer]);
+        if (flag) return;
+        const deferred = Promise.withResolvers();
+        this._pending.set(id, {
+          resolve: deferred.resolve,
+          reject: deferred.reject
+        });
+        return deferred.promise;
+      });
+      let result = this._handle(req, res, path, method);
+      while (typeof result === 'function') result = result();
+      return;
     }
+    this._pending.get(id).resolve(body);
   }
 }

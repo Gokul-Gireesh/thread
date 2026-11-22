@@ -4,14 +4,14 @@ export class Response {
   }
 
   send(body, transfer = []) {
-    this._interceptor(body, 0, transfer);
+    this._interceptor(body, 1, transfer);
   }
-  
+
   write(body, transfer = []) {
-    return this._interceptor(body, 1, transfer);
+    this._interceptor(body, 0, transfer);
   }
 
   end(body, transfer = []) {
-    return this._interceptor(body, 0, transfer);
+    this._interceptor(body, 1, transfer);
   }
 }

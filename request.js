@@ -1,12 +1,15 @@
-import { URLSearchParams } from 'node:url';
-
 export class Request {
-  constructor({ path, method, body, stream }) {
+  constructor({ path, method, body }) {
     this.path = path || '/';
     this.method = method || 'GET';
     this.body = body;
-    this.stream = stream;
-    this.params = {};
-    this.searchParams = new URLSearchParams(path.split('?')[1]);
+  }
+
+  getParams() {
+    return null;
+  }
+
+  getSearchParams() {
+    return null;
   }
 }

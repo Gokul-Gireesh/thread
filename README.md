@@ -1,11 +1,14 @@
 # @gokul-gireesh/thread
 
+> [!NOTE]
+> This README is outdated — some sections may not reflect the current state of the project.
+
 A routing and RPC layer for **Node.js Worker Threads** and **Web Workers**.
 
 ## Installation
 
 ```bash
-npm install @gokul-gireesh/thread
+npm install github:gokul-gireesh/thread
 ```
 
 ## Quick Start
@@ -30,7 +33,7 @@ import { Slave } from '@gokul-gireesh/thread';
 const worker = new Slave('./worker.js');
 
 const { body } = await worker.fetch('/compute');
-console.log(body); 
+console.log(body);
 ```
 
 ## Binary Header Layout (Uint16)
